@@ -185,3 +185,4 @@ if __name__ == "__main__":
     print("\n\n=== EKSPERIMENT 2: CIKLICNOST KRITICNE GRUPE ===\n")
     cyclicity_results = run_cyclicity_experiment(N_values, num_graphs=num_graphs, density=density)
     save_cyclicity_csv(cyclicity_results)
+    
