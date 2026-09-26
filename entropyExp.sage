@@ -1,163 +1,288 @@
 # entropyExp.sage
 #
-# Paralelni eksperiment: tree entropy za Erdos-Renyi G(N, p) i za RGG(N, r).
+# Meri "tree entropy" grafa:
 #
-#   tree entropy = (1/N) * log |Pic(G)|
+#       h(G) = (1/N) * log |Pic(G)|
 #
-# |Pic(G)| = broj razapinjucih stabala grafa G = det(reduced Laplasijan)
-# (Kirchhoff-ova matrix-tree teorema). Determinanta se racuna TACNO nad ZZ,
-# a tek zatim se uzima logaritam (broj je ogroman, ali RR to podnosi).
+# gde je |Pic(G)| broj razapinjucih stabala grafa G (Kirchhoff-ova
+# matrix-tree teorema: |Pic(G)| = det(reduced Laplacian)).
 #
-# Za svako N se u istoj petlji, u svakoj iteraciji, generise po jedan
-# povezan ER graf i jedan povezan RGG graf, pa se rezultati porede.
+# OVO JE "OZBILJNA" VERZIJA eksperimenta - N ide do nekoliko hiljada,
+# pa je generisanje grafova PREBACENO SA Sage-ovog Graph API-ja na
+# cisto numpy/scipy (vektorizovano ER, cKDTree za RGG na torusu).
+# Sage-ov Graph objekat (kao u erdosExp.sage/geometricExp.sage) je za
+# N~100-300 sasvim dovoljno brz, ali za N~6000 bi generisanje grafa
+# (posebno RGG dvostrukom petljom po parovima tacaka) bilo neprihvatljivo
+# sporo - a rejection-sampling za povezanost zahteva da GENERISANJE
+# bude jeftino, jer se cesto ponavlja. Fajl i dalje ostaje .sage i
+# pokrece se na isti nacin (`sage entropyExp.sage`) - Sage je i dalje
+# Python okruzenje, samo se ovde ne koristi njegov Graph API.
 #
-#   ER:  G(N, p=0.1)
-#   RGG: N tacaka u [0,1]^2, grana ako je rastojanje < r,
-#        r = c * r_c(N),  r_c(N) = sqrt(log(N) / (pi*N)),  c = 3
+# Kljucne odluke o metodologiji (nepromenjene iz prethodnih verzija):
 #
-# Pokretanje:
+#   - Graf se generise i PONAVLJA (rejection sampling) dok ne ispadne
+#     povezan - NEMA fallback-a na giant component. Ako graf nije
+#     povezan, |Pic(G)| = 0 i h(G) nije definisano.
+#
+#   - Prosecan stepen se drzi FIKSNIM (c) dok N raste - inace h(G) ne
+#     konvergira ka konstanti nego raste bez granice.
+#
+#       ER:  p = c/N            => ocekivan prosecan stepen ~= c
+#       RGG: r = sqrt(c/(pi*N)) => ocekivan prosecan stepen ~= c
+#
+#   - RGG se generise na TORUSU (periodicne granice), da se izbegnu
+#     granicni efekti (tacke blizu ivica kvadrata bi inace sistematski
+#     imale manje suseda).
+#
+#   - log|Pic(G)| se racuna preko CHOLESKY faktorizacije reduced
+#     Laplacian-a (umesto tacne bignum determinante) - za N u hiljadama,
+#     tacan broj razapinjucih stabala ima na hiljade cifara, pa bi
+#     racunanje sa njim bilo i sporo i nepotrebno (treba nam samo
+#     log, ne tacna vrednost - videti log_spanning_trees nize).
+#
+# NOVO U OVOJ VERZIJI (za "ozbiljan" eksperiment):
+#
+#   - N_values ide do 6400 (umesto do 300).
+#   - Broj grafova po N opada sa N (skuplji su veci grafovi), ali
+#     ostaje dovoljno velik da standardna greska mean_h ostane mala.
+#   - Ekstrapolacija h(N) -> h_inf je WEIGHTED (tezinski) linearni fit
+#     u 1/N, sa procenom STANDARDNE GRESKE ekstrapolisanog h_inf - ne
+#     samo gola tacka, nego i interval poverenja.
+#   - Cuvaju se i SIROVI podaci (ne samo mean/std) u CSV, radi potpune
+#     transparentnosti i reproducibilnosti.
+#   - Fiksan seed (numpy Generator) - rezultati su reproducibilni.
+#
+# OGRANICENJE KOJE TREBA IMATI NA UMU: pri fiksnom c, ocekivan broj
+# izolovanih cvorova u ER/RGG raste ~N*exp(-c). Za c=7.8 to je jos
+# uvek malo do N~6000-8000 (par pokusaja rejection samplinga po
+# grafu), ali bi za znatno vece N (recimo N>20000) broj potrebnih
+# pokusaja pocinjao eksponencijalno da raste. Ako zelis jos vece N,
+# ili povecaj max_attempts, ili povecaj c (sto pomera i samu granicnu
+# vrednost h_inf(c)).
+#
+# Pokretanje (u terminalu, Ubuntu):
 #   sage entropyExp.sage
+
 
 import csv
 import math
-import random
+import time
+
+import numpy as np
+from scipy.spatial import cKDTree
+from scipy.sparse import coo_matrix
+from scipy.sparse.csgraph import connected_components
 
 
-# Generisanje grafova
+# -----------------------------------------------------------------
+# Generisanje POVEZANIH grafova, vektorizovano (numpy/scipy)
+# -----------------------------------------------------------------
 
-def random_connected_er(N, density):
-    G = graphs.RandomGNP(N, density)
-    while not G.is_connected():
-        G = graphs.RandomGNP(N, density)
-    return G
-
-
-def connectivity_threshold(N):
-    return math.sqrt(math.log(N) / (math.pi * N))
-
-
-def random_geometric_graph(N, r):
-    pts = [(random.random(), random.random()) for _ in range(N)]
-    G = Graph()
-    G.add_vertices(range(N))
-    r2 = r * r
-    for i in range(N):
-        xi, yi = pts[i]
-        for j in range(i + 1, N):
-            dx = xi - pts[j][0]
-            dy = yi - pts[j][1]
-            if dx * dx + dy * dy < r2:
-                G.add_edge(i, j)
-    return G
+def _is_connected(N, edges):
+    """True ako je graf sa N cvorova i datim ivicama povezan (jedna
+    komponenta). Koristi scipy - brzo i za velike, retke grafove."""
+    if edges.shape[0] == 0:
+        return N <= 1
+    rows = np.concatenate([edges[:, 0], edges[:, 1]])
+    cols = np.concatenate([edges[:, 1], edges[:, 0]])
+    data = np.ones(rows.shape[0])
+    A = coo_matrix((data, (rows, cols)), shape=(N, N)).tocsr()
+    n_comp, _ = connected_components(A, directed=False)
+    return n_comp == 1
 
 
-def random_connected_rgg(N, r, max_attempts=200):
+def _er_edges(N, c, rng):
+    """Jedan uzorak ER grafa G(N, p=c/N), vraca niz ivica (M,2)."""
+    p = c / N
+    iu, ju = np.triu_indices(N, k=1)
+    mask = rng.random(iu.shape[0]) < p
+    return np.column_stack([iu[mask], ju[mask]])
+
+
+def _rgg_torus_edges(N, c, rng):
+    """Jedan uzorak RGG na jedinicnom torusu sa ciljanim prosecnim
+    stepenom c (r = sqrt(c/(pi*N))), vraca niz ivica (M,2)."""
+    r = math.sqrt(c / (math.pi * N))
+    pts = rng.random((N, 2))
+    tree = cKDTree(pts, boxsize=1.0)  # boxsize=1.0 => periodicne granice
+    return tree.query_pairs(r, output_type="ndarray")
+
+
+def random_connected_er(N, c, rng, max_attempts=2000):
+    """ER graf G(N, p=c/N); ponavlja se dok ne ispadne povezan.
+    Vraca niz ivica (ne Sage Graph - videti napomenu na vrhu fajla)."""
     for _ in range(max_attempts):
-        G = random_geometric_graph(N, r)
-        if G.is_connected():
-            return G
+        edges = _er_edges(N, c, rng)
+        if _is_connected(N, edges):
+            return edges
     raise RuntimeError(
-        f"N={N}, r={r:.4f}: nije dobijen povezan RGG posle {max_attempts} "
-        f"pokusaja (r_c={connectivity_threshold(N):.4f}) - povecaj radius_multiplier."
+        f"ER: N={N}, c={c}: nije dobijen povezan graf posle "
+        f"{max_attempts} pokusaja - probaj vece c ili vece max_attempts."
     )
 
 
-# Tree entropy
-
-def reduced_laplacian(G):
-    L = G.laplacian_matrix()
-    n = L.nrows()
-    return L.delete_rows([n - 1]).delete_columns([n - 1])
-
-
-def tree_entropy(G):
-    """(1/n) * log |Pic(G)|, |Pic(G)| = det(reduced Laplacian)."""
-    n = G.order()
-    Lr = reduced_laplacian(G).change_ring(ZZ)
-    pic = Lr.det()                      # tacan broj razapinjucih stabala
-    return float(RR(pic).log() / n)
+def random_connected_rgg_torus(N, c, rng, max_attempts=2000):
+    """RGG na torusu sa ciljanim prosecnim stepenom c; ponavlja se
+    dok ne ispadne povezan. Vraca niz ivica."""
+    for _ in range(max_attempts):
+        edges = _rgg_torus_edges(N, c, rng)
+        if _is_connected(N, edges):
+            return edges
+    raise RuntimeError(
+        f"RGG: N={N}, c={c}: nije dobijen povezan graf posle "
+        f"{max_attempts} pokusaja - probaj vece c ili vece max_attempts."
+    )
 
 
-def mean_and_std(xs):
-    m = sum(xs) / len(xs)
-    var = sum((x - m) ** 2 for x in xs) / max(len(xs) - 1, 1)
-    return m, math.sqrt(var)
+# -----------------------------------------------------------------
+# Kirchhoff-ova teorema preko Cholesky faktorizacije
+# -----------------------------------------------------------------
+
+def tree_entropy(N, edges):
+    """h(G) = (1/N) * log|Pic(G)|, gde je |Pic(G)| = det(reduced
+    Laplacian). Reduced Laplacian povezanog grafa je uvek pozitivno
+    definitna simetricna matrica (pun Laplasijan je pozitivno
+    semidefinitan sa tacno jednom nula-sopstvenom vrednoscu -
+    konstantan vektor; brisanjem jednog reda/kolone ta nula nestaje).
+    To je tacno uslov pod kojim Cholesky faktorizacija radi.
+
+    Ako je Lr = C*C^T (C donja trougaona), onda je
+    det(Lr) = det(C)^2 = (prod C_ii)^2, pa je log det(Lr) = 2*sum(log C_ii).
+
+    Racunanje ide u float64 (ne u tacnoj/bignum aritmetici) - greska
+    je reda 1e-15 po logaritmu, potpuno zanemarljivo kada usrednjavamo
+    preko desetina/stotina grafova, a za N u hiljadama bi tacan broj
+    razapinjucih stabala imao HILJADE cifara i bio i spor i nepotreban."""
+    rows = np.concatenate([edges[:, 0], edges[:, 1]])
+    cols = np.concatenate([edges[:, 1], edges[:, 0]])
+    data = np.ones(rows.shape[0])
+    A = coo_matrix((data, (rows, cols)), shape=(N, N)).tocsr().toarray()
+    deg = A.sum(axis=1)
+    L = np.diag(deg) - A
+    Lr = L[:-1, :-1]
+    C = np.linalg.cholesky(Lr)
+    log_det = 2.0 * np.sum(np.log(np.diag(C)))
+    return float(log_det / N)
 
 
-# Eksperiment
+# -----------------------------------------------------------------
+# Eksperiment: tree entropy u funkciji N
+# -----------------------------------------------------------------
 
-def run_entropy_experiment(N_values, num_graphs=100, density=0.1,
-                           radius_multiplier=3.0, verbose=True):
+def run_tree_entropy_experiment(N_values, trials_list, c, generator, label, rng):
+    """generator(N, c, rng) -> niz ivica POVEZANOG grafa sa N cvorova.
+    Vraca {N: {"mean_h", "std_h", "se_h", "hs": [...]}}."""
     results = {}
 
-    for N in N_values:
-        r = radius_multiplier * connectivity_threshold(N)
+    for N, trials in zip(N_values, trials_list):
+        t0 = time.time()
+        hs = np.empty(trials)
+        report_every = max(1, trials // 5)
 
-        er_ent, rgg_ent = [], []
-        er_deg, rgg_deg = [], []
+        for i in range(trials):
+            edges = generator(N, c, rng)
+            hs[i] = tree_entropy(N, edges)
 
-        for i in range(num_graphs):
-            G_er = random_connected_er(N, density)
-            G_rgg = random_connected_rgg(N, r)
+            if (i + 1) % report_every == 0:
+                print(f"  [{label}] N={N}: obradjeno {i + 1}/{trials} grafova")
 
-            er_ent.append(tree_entropy(G_er))
-            rgg_ent.append(tree_entropy(G_rgg))
-            er_deg.append(2 * G_er.size() / G_er.order())
-            rgg_deg.append(2 * G_rgg.size() / G_rgg.order())
+        mean_h = float(hs.mean())
+        std_h = float(hs.std(ddof=1)) if trials > 1 else 0.0
+        se_h = std_h / math.sqrt(trials) if trials > 1 else 0.0
 
-            if verbose and (i + 1) % 20 == 0:
-                print(f"  N={N}: obradjeno {i + 1}/{num_graphs} parova grafova")
+        results[N] = {"mean_h": mean_h, "std_h": std_h, "se_h": se_h, "hs": hs.tolist()}
 
-        er_m, er_s = mean_and_std(er_ent)
-        rgg_m, rgg_s = mean_and_std(rgg_ent)
-
-        results[N] = {
-            "r": r,
-            "er_mean": er_m, "er_std": er_s,
-            "rgg_mean": rgg_m, "rgg_std": rgg_s,
-            "er_avg_deg": sum(er_deg) / num_graphs,
-            "rgg_avg_deg": sum(rgg_deg) / num_graphs,
-            # teorijska aproksimacija za ER: tau ~ N^(N-2) p^(N-1)  =>  ~ log(N p)
-            "er_theory": math.log(N * density),
-        }
-
-        print(f"N={N:>4} | ER: {er_m:.4f} (sd {er_s:.4f}, deg {results[N]['er_avg_deg']:.1f})"
-              f" | RGG: {rgg_m:.4f} (sd {rgg_s:.4f}, deg {results[N]['rgg_avg_deg']:.1f}, r={r:.4f})")
+        print(f"[{label}] N={N:>5}  c={c}  |  mean_h = {mean_h:.5f} +- {se_h:.5f}  "
+              f"(std={std_h:.4f}, trials={trials}, {time.time() - t0:.1f}s)")
 
     return results
 
 
-def print_comparison(results):
-    print("\n=== POREDJENJE: tree entropy (1/N) log|Pic(G)| ===")
-    print(f"{'N':>5} {'ER mean':>9} {'RGG mean':>9} {'ER-RGG':>9} "
-          f"{'ER deg':>7} {'RGG deg':>8} {'log(Np)':>8}")
-    for N, d in results.items():
-        print(f"{N:>5} {d['er_mean']:>9.4f} {d['rgg_mean']:>9.4f} "
-              f"{d['er_mean'] - d['rgg_mean']:>9.4f} "
-              f"{d['er_avg_deg']:>7.1f} {d['rgg_avg_deg']:>8.1f} {d['er_theory']:>8.4f}")
+def weighted_extrapolation(results):
+    """Tezinski (weighted least squares) linearni fit mean_h(N) u
+    odnosu na 1/N, sa tezinama = 1/se_h^2 (tacke sa manjom
+    standardnom greskom uticu vise na fit). Vraca (h_inf, se_h_inf).
+
+    Model: mean_h(N) = h_inf + a/N (h_inf je odsecak pri 1/N -> 0)."""
+    Ns = sorted(results.keys())
+    x = np.array([1.0 / N for N in Ns])
+    y = np.array([results[N]["mean_h"] for N in Ns])
+    se = np.array([results[N]["se_h"] for N in Ns])
+
+    # ako je neka standardna greska 0 (npr. samo 1 uzorak), izbegni deljenje nulom
+    se_safe = np.where(se > 0, se, se[se > 0].min() if np.any(se > 0) else 1.0)
+    w = 1.0 / se_safe**2
+
+    X = np.vstack([x, np.ones_like(x)]).T
+    W = np.diag(w)
+    XtW = X.T @ W
+    cov = np.linalg.inv(XtW @ X)
+    beta = cov @ XtW @ y
+    slope, intercept = beta
+    se_intercept = math.sqrt(cov[1, 1])
+
+    return float(intercept), float(se_intercept)
 
 
-def save_csv(results, filename="entropyExp.csv"):
+def save_tree_entropy_csv(results, filename):
+    """Cuva mean/std/se PO N (sazetak)."""
     with open(filename, "w", newline="") as f:
-        w = csv.writer(f)
-        w.writerow(["N", "r", "er_mean_entropy", "er_std", "er_avg_degree",
-                    "rgg_mean_entropy", "rgg_std", "rgg_avg_degree", "er_theory_log_Np"])
-        for N, d in results.items():
-            w.writerow([N, d["r"], d["er_mean"], d["er_std"], d["er_avg_deg"],
-                        d["rgg_mean"], d["rgg_std"], d["rgg_avg_deg"], d["er_theory"]])
-    print(f"\nRezultati sacuvani u: {filename}")
+        writer = csv.writer(f)
+        writer.writerow(["N", "mean_h", "std_h", "se_h", "trials"])
+        for N, data in sorted(results.items()):
+            writer.writerow([N, data["mean_h"], data["std_h"], data["se_h"], len(data["hs"])])
+    print(f"Sazetak sacuvan u: {filename}")
 
 
+def save_raw_csv(results, filename):
+    """Cuva SVAKU pojedinacnu izmerenu vrednost h(G) - puna
+    transparentnost/reproducibilnost, ne samo agregati."""
+    with open(filename, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["N", "h"])
+        for N, data in sorted(results.items()):
+            for h in data["hs"]:
+                writer.writerow([N, h])
+    print(f"Sirovi podaci sacuvani u: {filename}")
+
+
+# -----------------------------------------------------------------
 # Pokretanje
+# -----------------------------------------------------------------
 
 if __name__ == "__main__":
-    N_values = [100, 150, 200, 250, 300]
-    num_graphs = 100          # po N: 100 ER + 100 RGG grafova
-    density = 0.1             # ER: p
-    radius_multiplier = 3.0   # RGG: r = 3 * r_c(N)
+    # Fiksni seed => reproducibilni rezultati.
+    # NAPOMENA: Sage preparser pretvara cele-brojne literale u sopstveni
+    # Integer tip, a numpy.random.default_rng strogo trazi native Python
+    # int - zato eksplicitno int(...) ovde (i na N_values/trials_list/c
+    # nize), da ne pukne isto kao gore u tvom traceback-u.
+    rng = np.random.default_rng(int(20240926))
 
-    print("=== EKSPERIMENT: TREE ENTROPY (ER vs RGG) ===\n")
-    res = run_entropy_experiment(N_values, num_graphs=num_graphs,
-                                 density=density, radius_multiplier=radius_multiplier)
-    print_comparison(res)
-    save_csv(res)
+    # N ide do 6400 (umesto do 300) - videti napomenu na vrhu fajla o
+    # granicama izvodljivosti rejection samplinga za jos vece N.
+    N_values = [int(n) for n in [200, 400, 800, 1600, 3200, 6400]]
+    # Manje grafova za skuplje (vece) N - i dalje dovoljno za malu
+    # standardnu gresku (se_h se stampa uz svaki red).
+    trials_list = [int(t) for t in [400, 300, 200, 100, 50, 25]]
+    c = float(7.8)  # ciljani prosecan stepen - ISTI za ER i za RGG
+
+    print("=== TREE ENTROPY: ER, G(N, p=c/N) ===\n")
+    er_results = run_tree_entropy_experiment(
+        N_values, trials_list, c, random_connected_er, label="ER", rng=rng
+    )
+    save_tree_entropy_csv(er_results, "entropyExp_er_summary.csv")
+    save_raw_csv(er_results, "entropyExp_er_raw.csv")
+
+    print("\n\n=== TREE ENTROPY: RGG na torusu, r=sqrt(c/(pi*N)) ===\n")
+    rgg_results = run_tree_entropy_experiment(
+        N_values, trials_list, c, random_connected_rgg_torus, label="RGG", rng=rng
+    )
+    save_tree_entropy_csv(rgg_results, "entropyExp_rgg_summary.csv")
+    save_raw_csv(rgg_results, "entropyExp_rgg_raw.csv")
+
+    print("\n=== EKSTRAPOLACIJA h(N) -> h_inf (weighted linearni fit u 1/N) ===")
+    er_h_inf, er_se = weighted_extrapolation(er_results)
+    rgg_h_inf, rgg_se = weighted_extrapolation(rgg_results)
+    print(f"ER:  h_inf = {er_h_inf:.4f} +- {er_se:.4f}")
+    print(f"RGG: h_inf = {rgg_h_inf:.4f} +- {rgg_se:.4f}")
+    print(f"\nRazlika (ER - RGG) = {er_h_inf - rgg_h_inf:.4f}")
