@@ -1,0 +1,38 @@
+SELFTEST: brzi put vs naivni rank celog L (N-rank-k) i (N=60) vs Smith forma
+
+  rgg N=60 d=3   k=7   core=44   fast=[5, 5, 3, 1] naive=[5, 5, 3, 1] snf=[5, 5, 3, 1]   OK
+  rgg N=60 d=3   k=10  core=48   fast=[4, 10, 1, 2] naive=[4, 10, 1, 2] snf=[4, 10, 1, 2]   OK
+  rgg N=60 d=4   k=6   core=51   fast=[4, 5, 4, 2] naive=[4, 5, 4, 2] snf=[4, 5, 4, 2]   OK
+  rgg N=60 d=4   k=1   core=54   fast=[4, 6, 3, 3] naive=[4, 6, 3, 3] snf=[4, 6, 3, 3]   OK
+  rgg N=60 d=5   k=1   core=59   fast=[3, 2, 1, 0] naive=[3, 2, 1, 0] snf=[3, 2, 1, 0]   OK
+  rgg N=60 d=5   k=3   core=57   fast=[12, 6, 2, 1] naive=[12, 6, 2, 1] snf=[12, 6, 2, 1]   OK
+  rgg N=60 d=6   k=1   core=60   fast=[1, 1, 1, 0] naive=[1, 1, 1, 0] snf=[1, 1, 1, 0]   OK
+  rgg N=60 d=6   k=1   core=60   fast=[2, 0, 1, 0] naive=[2, 0, 1, 0] snf=[2, 0, 1, 0]   OK
+  rgg N=60 d=8   k=1   core=60   fast=[1, 1, 0, 0] naive=[1, 1, 0, 0] snf=[1, 1, 0, 0]   OK
+  rgg N=60 d=8   k=1   core=60   fast=[0, 2, 0, 1] naive=[0, 2, 0, 1] snf=[0, 2, 0, 1]   OK
+  rgg N=60 d=12  k=1   core=60   fast=[3, 2, 0, 0] naive=[3, 2, 0, 0] snf=[3, 2, 0, 0]   OK
+  rgg N=60 d=12  k=1   core=60   fast=[0, 0, 0, 0] naive=[0, 0, 0, 0] snf=[0, 0, 0, 0]   OK
+  rgg N=200 d=3  k=30  core=144  fast=[20, 18, 7, 2] naive=[20, 18, 7, 2]   OK
+  rgg N=200 d=3  k=26  core=151  fast=[17, 14, 4, 3] naive=[17, 14, 4, 3]   OK
+  rgg N=200 d=4  k=10  core=172  fast=[26, 13, 4, 4] naive=[26, 13, 4, 4]   OK
+  rgg N=200 d=4  k=10  core=177  fast=[21, 17, 7, 6] naive=[21, 17, 7, 6]   OK
+  rgg N=200 d=5  k=5   core=193  fast=[29, 15, 11, 6] naive=[29, 15, 11, 6]   OK
+  rgg N=200 d=5  k=3   core=190  fast=[25, 23, 6, 2] naive=[25, 23, 6, 2]   OK
+  rgg N=200 d=6  k=1   core=199  fast=[25, 8, 8, 5] naive=[25, 8, 8, 5]   OK
+  rgg N=200 d=6  k=2   core=199  fast=[20, 11, 7, 3] naive=[20, 11, 7, 3]   OK
+  rgg N=200 d=8  k=1   core=200  fast=[6, 4, 0, 0] naive=[6, 4, 0, 0]   OK
+  rgg N=200 d=8  k=1   core=199  fast=[8, 2, 3, 3] naive=[8, 2, 3, 3]   OK
+  rgg N=200 d=12 k=1   core=200  fast=[5, 2, 3, 0] naive=[5, 2, 3, 0]   OK
+  rgg N=200 d=12 k=1   core=200  fast=[5, 5, 4, 1] naive=[5, 5, 4, 1]   OK
+  reg N=60 d=3   k=1   core=60   fast=[0, 1, 0, 0] naive=[0, 1, 0, 0] snf=[0, 1, 0, 0]   OK
+  reg N=60 d=3   k=1   core=60   fast=[1, 1, 0, 0] naive=[1, 1, 0, 0] snf=[1, 1, 0, 0]   OK
+  reg N=60 d=3   k=1   core=60   fast=[1, 0, 0, 0] naive=[1, 0, 0, 0] snf=[1, 0, 0, 0]   OK
+  reg N=60 d=4   k=1   core=60   fast=[1, 0, 0, 0] naive=[1, 0, 0, 0] snf=[1, 0, 0, 0]   OK
+  reg N=60 d=4   k=1   core=60   fast=[1, 0, 0, 0] naive=[1, 0, 0, 0] snf=[1, 0, 0, 0]   OK
+  reg N=60 d=4   k=1   core=60   fast=[3, 1, 0, 0] naive=[3, 1, 0, 0] snf=[3, 1, 0, 0]   OK
+  reg N=60 d=5   k=1   core=60   fast=[0, 0, 0, 0] naive=[0, 0, 0, 0] snf=[0, 0, 0, 0]   OK
+  reg N=60 d=5   k=1   core=60   fast=[1, 1, 1, 1] naive=[1, 1, 1, 1] snf=[1, 1, 1, 1]   OK
+  reg N=60 d=5   k=1   core=60   fast=[0, 0, 1, 0] naive=[0, 0, 1, 0] snf=[0, 0, 1, 0]   OK
+
+SELFTEST: SVE OK
+0

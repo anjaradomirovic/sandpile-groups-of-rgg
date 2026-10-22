@@ -1,0 +1,66 @@
+KONTROLA: slucajni d-regularni multigrafovi (unija d uparivanja), N=1000
+Ocekivano: (1) p-rk/N -> 0; (2) za NEPARNO d raspodela P(r) = formula (Wood/Meszaros Thm 1.2);
+           za PARNO d i p=2 formula ne vazi (2-rang je neparan), pa se p=2 preskace.
+
+d=3  grafova: 5000   udeo povezanih: 0.9994
+  p=2: mean p-rk = 0.749  (p-rk/N = 0.00075)  
+       r=0: empirijski 0.4386 +- 0.0070   teorija 0.4194   z = +2.7
+       r=1: empirijski 0.3972 +- 0.0069   teorija 0.4194   z = -3.2
+       r=2: empirijski 0.1426 +- 0.0049   teorija 0.1398   z = +0.6
+       r=3: empirijski 0.0194 +- 0.0020   teorija 0.0200   z = -0.3
+  p=3: mean p-rk = 0.394  (p-rk/N = 0.00039)  
+       r=0: empirijski 0.6468 +- 0.0068   teorija 0.6390   z = +1.2
+       r=1: empirijski 0.3140 +- 0.0066   teorija 0.3195   z = -0.8
+       r=2: empirijski 0.0374 +- 0.0027   teorija 0.0399   z = -0.9
+       r=3: empirijski 0.0018 +- 0.0006   teorija 0.0015   z = +0.4
+  p=5: mean p-rk = 0.213  (p-rk/N = 0.00021)  
+       r=0: empirijski 0.7962 +- 0.0057   teorija 0.7933   z = +0.5
+       r=1: empirijski 0.1950 +- 0.0056   teorija 0.1983   z = -0.6
+       r=2: empirijski 0.0088 +- 0.0013   teorija 0.0083   z = +0.4
+       r=3: empirijski 0.0000 +- 0.0000   teorija 0.0001   z = +nan
+  p=7: mean p-rk = 0.144  (p-rk/N = 0.00014)  
+       r=0: empirijski 0.8590 +- 0.0049   teorija 0.8546   z = +0.9
+       r=1: empirijski 0.1378 +- 0.0049   teorija 0.1424   z = -1.0
+       r=2: empirijski 0.0032 +- 0.0008   teorija 0.0030   z = +0.3
+       r=3: empirijski 0.0000 +- 0.0000   teorija 0.0000   z = +nan
+
+d=4  grafova: 5000   udeo povezanih: 1.0000
+  p=2: preskoceno (d parno)
+  p=3: mean p-rk = 0.414  (p-rk/N = 0.00041)  
+       r=0: empirijski 0.6342 +- 0.0068   teorija 0.6390   z = -0.7
+       r=1: empirijski 0.3190 +- 0.0066   teorija 0.3195   z = -0.1
+       r=2: empirijski 0.0456 +- 0.0030   teorija 0.0399   z = +1.9
+       r=3: empirijski 0.0012 +- 0.0005   teorija 0.0015   z = -0.7
+  p=5: mean p-rk = 0.228  (p-rk/N = 0.00023)  
+       r=0: empirijski 0.7800 +- 0.0059   teorija 0.7933   z = -2.3
+       r=1: empirijski 0.2116 +- 0.0058   teorija 0.1983   z = +2.3
+       r=2: empirijski 0.0084 +- 0.0013   teorija 0.0083   z = +0.1
+       r=3: empirijski 0.0000 +- 0.0000   teorija 0.0001   z = +nan
+  p=7: mean p-rk = 0.157  (p-rk/N = 0.00016)  
+       r=0: empirijski 0.8452 +- 0.0051   teorija 0.8546   z = -1.8
+       r=1: empirijski 0.1528 +- 0.0051   teorija 0.1424   z = +2.0
+       r=2: empirijski 0.0020 +- 0.0006   teorija 0.0030   z = -1.5
+       r=3: empirijski 0.0000 +- 0.0000   teorija 0.0000   z = +nan
+
+d=5  grafova: 5000   udeo povezanih: 1.0000
+  p=2: mean p-rk = 0.749  (p-rk/N = 0.00075)  
+       r=0: empirijski 0.4324 +- 0.0070   teorija 0.4194   z = +1.9
+       r=1: empirijski 0.4094 +- 0.0070   teorija 0.4194   z = -1.4
+       r=2: empirijski 0.1362 +- 0.0049   teorija 0.1398   z = -0.7
+       r=3: empirijski 0.0206 +- 0.0020   teorija 0.0200   z = +0.3
+  p=3: mean p-rk = 0.392  (p-rk/N = 0.00039)  
+       r=0: empirijski 0.6440 +- 0.0068   teorija 0.6390   z = +0.7
+       r=1: empirijski 0.3208 +- 0.0066   teorija 0.3195   z = +0.2
+       r=2: empirijski 0.0344 +- 0.0026   teorija 0.0399   z = -2.1
+       r=3: empirijski 0.0008 +- 0.0004   teorija 0.0015   z = -1.8
+  p=5: mean p-rk = 0.215  (p-rk/N = 0.00021)  
+       r=0: empirijski 0.7914 +- 0.0057   teorija 0.7933   z = -0.3
+       r=1: empirijski 0.2024 +- 0.0057   teorija 0.1983   z = +0.7
+       r=2: empirijski 0.0062 +- 0.0011   teorija 0.0083   z = -1.9
+       r=3: empirijski 0.0000 +- 0.0000   teorija 0.0001   z = +nan
+  p=7: mean p-rk = 0.148  (p-rk/N = 0.00015)  
+       r=0: empirijski 0.8550 +- 0.0050   teorija 0.8546   z = +0.1
+       r=1: empirijski 0.1424 +- 0.0049   teorija 0.1424   z = -0.0
+       r=2: empirijski 0.0026 +- 0.0007   teorija 0.0030   z = -0.5
+       r=3: empirijski 0.0000 +- 0.0000   teorija 0.0000   z = +nan
+
